@@ -39,7 +39,7 @@ $(addsuffix .fai,${REFERENCE}): ${REFERENCE}
 	${samtools.exe} faidx $lt;
 
 $(addsuffix .bwt,${REFERENCE}): ${REFERENCE}
-	${bwa.exe} index $lt;
+	${bwa.exe} index $&lt;
 	
 
 clean:
@@ -53,12 +53,15 @@ clean:
 # VCF for project '<xsl:value-of select="@name"/>'
 # 
 <xsl:apply-templates select="." mode="vcf.final"/> : <xsl:for-each select="sample"> \
-	<xsl:apply-templates select="." mode="bam.final"/></xsl:for-each>
+	<xsl:apply-templates select="." mode="bam.final"/></xsl:for-each> \
+	$(addsuffix .fai,${REFERENCE})
 	mkdir -p $(dir $@) &amp;&amp; \
-	samtools mpilup &amp;&amp; \
-	bgzip $(basename$@) &amp;&amp; \
-	tabix -p vcf $@
+	${samtools.exe} mpileup -uf ${REFERENCE} $(filter %.bam,$^) | \
+	${bcftools.exe} view -vcg - > $(basename $@)  &amp;&amp; \
+	${bgzip.exe} -f $(basename $@) &amp;&amp; \
+	${tabix.exe} -f -p vcf $@
 	
+	   
 
 <xsl:apply-templates select="sample"/>
 
@@ -72,11 +75,12 @@ clean:
 # 
 <xsl:apply-templates select="." mode="bam.final"/><xsl:text> : </xsl:text><xsl:apply-templates select="." mode="bam.rmdup"/>
 	mkdir -p $(dir $@) &amp;&amp; \
-	picard rmdup IN=$&lt; -O $@	
+	cp  $&lt; $@
+
 
 <xsl:apply-templates select="." mode="bam.rmdup"/><xsl:text> : </xsl:text><xsl:apply-templates select="." mode="bam.merged"/>
 	mkdir -p $(dir $@) &amp;&amp; \
-	picard rmdup IN=$&lt; -O $@
+	${samtools.exe} rmdup  $&lt;  $@
 
 
 <xsl:if test="count(fastq) &gt; 1">
@@ -86,7 +90,7 @@ clean:
 <xsl:apply-templates select="." mode="bam.merged"/><xsl:text> : </xsl:text><xsl:for-each select="fastq"> \
  	<xsl:apply-templates select="." mode="bam.sorted"/> </xsl:for-each>
 	mkdir -p $(dir $@) &amp;&amp; \
- 	picard merge $(foreach B,$(filter %.bam,$^), I=$B ) -O $@
+ 	${samtools.exe} merge -f $@ $(filter %.bam,$^)
   
 </xsl:if>
 
@@ -114,9 +118,9 @@ clean:
 	<xsl:value-of select="rev"/> \
 	$(addsuffix .bwt,${REFERENCE})
 	mkdir -p $(dir $@) &amp;&amp; \
-	${bwa.exe} mem -R '@RG\tID:<xsl:value-of select="generate-id(.)"/>\tSM:<xsl:value-of select="../@name"/>' ${REFERENCE} $(filter %q.gz $^) |\
+	${bwa.exe} mem -R '@RG\tID:<xsl:value-of select="generate-id(.)"/>\tSM:<xsl:value-of select="../@name"/>' ${REFERENCE} <xsl:value-of select="for"/> <xsl:text> </xsl:text> <xsl:value-of select="rev"/>  |\
 	${samtools.exe} view -uS - |\
-	${samtools.exe} sort -o $(basename $@) -
+	${samtools.exe} sort - $(basename $@) 
 
 
 </xsl:template>
@@ -124,7 +128,7 @@ clean:
 <!-- BAM mapped to reference and sorted -->
 <xsl:template match='fastq' mode="bam.sorted">
 <xsl:apply-templates select="." mode="bam.dir"/>
-<xsl:value-of select="concat(count(preceding-sibling::fastq) + 1,'_sorted.bam')"/>
+<xsl:value-of select="concat('${tmp.prefix}',count(preceding-sibling::fastq) + 1,'_sorted.bam')"/>
 </xsl:template>
 
 <!-- directory for the BAMs -->
@@ -150,11 +154,9 @@ clean:
 <!-- Print the name BAM with merged sorted BAM -->
 <xsl:template match='sample' mode="bam.merged">
 <xsl:choose>
-  <!-- only one pair of fastq . No need to merge -->
   <xsl:when test="count(fastq)=1">
-  	<xsl:apply-templates select="." mode="bam.sorted"/>
+  	<xsl:apply-templates select="fastq" mode="bam.sorted"/>
   </xsl:when>
-  <!-- merge BAMS -->
   <xsl:otherwise>
     <xsl:apply-templates select="." mode="bam.dir"/>
     <xsl:text>${tmp.prefix}merged.bam</xsl:text>

@@ -1,12 +1,12 @@
-REFERENCE=ref.fa
+REFERENCE=test/ref/ref.fa
 CHROMOSOMES=1 2 3 4 5 6 7 8 9 10
 tmp.prefix=__DELETE__
 
-samtools.dir=samtools
-samtools.exe=${samtools}/samtools
-
-bwa.dir=bwa
-bwa.exe=${bwa.dir}/bwa
+samtools.exe=samtools
+bcftools.exe=bcftools
+bgzip.exe=bgzip
+tabix.exe=tabix
+bwa.exe=bwa
 
 
 
