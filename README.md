@@ -6,7 +6,7 @@ Generating the Makefile only requires standard tools like **xmllint** and **xslt
 
 
 ## Example
-Here is an self-explanatory xample of model of data
+Here is an self-explanatory example of model for the data
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <model name="myProject" description="my project" directory="OUT">
