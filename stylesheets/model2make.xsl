@@ -52,11 +52,10 @@ clean:
 #
 # VCF for project '<xsl:value-of select="@name"/>'
 # 
-<xsl:apply-templates select="." mode="vcf.final"/> : <xsl:for-each select="sample"> \
-	<xsl:apply-templates select="." mode="bam.final"/></xsl:for-each> \
+<xsl:apply-templates select="." mode="vcf.final"/> : $(addsuffix .bai,<xsl:for-each select="sample"><xsl:text> </xsl:text><xsl:apply-templates select="." mode="bam.final"/> </xsl:for-each>) \
 	$(addsuffix .fai,${REFERENCE})
 	mkdir -p $(dir $@) &amp;&amp; \
-	${samtools.exe} mpileup -uf ${REFERENCE} $(filter %.bam,$^) | \
+	${samtools.exe} mpileup -uf ${REFERENCE} $(basename $(filter %.bai,$^)) | \
 	${bcftools.exe} view -vcg - > $(basename $@)  &amp;&amp; \
 	${bgzip.exe} -f $(basename $@) &amp;&amp; \
 	${tabix.exe} -f -p vcf $@
@@ -70,6 +69,12 @@ clean:
 
 <xsl:template match='sample'>
 
+#
+# index final BAM for Sample '<xsl:value-of select="@name"/>'
+# 
+$(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:apply-templates select="." mode="bam.final"/>
+	mkdir -p $(dir $@) &amp;&amp; \
+	${samtools.exe} index  $&lt;
 #
 # prepare final BAM for Sample '<xsl:value-of select="@name"/>'
 # 
