@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema
+   xmlns:xs="http://www.w3.org/2001/XMLSchema"
+   elementFormDefault="unqualified"
+   attributeFormDefault="unqualified"
+   >
+
+<xs:complexType name="fastq">
+<xs:sequence>
+	 <xs:element name="for" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+	 <xs:element name="rev" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+</xs:sequence>
+<xs:attribute name="flowcell" type="xs:token" default="na"/>
+<xs:attribute name="lane" type="xs:token" default="1"/>
+</xs:complexType>
+
+<xs:complexType name="sample">
+<xs:sequence>
+	 <xs:element name="fastq" type="fasq" minOccurs="1" maxOccurs="unbounded"/>
+</xs:sequence>
+<xs:attribute name="name" type="xs:token" />
+</xs:complexType>
+
+<xs:complexType name="project">
+<xs:sequence>
+	 <xs:element name="sample" type="sample" minOccurs="1" maxOccurs="unbounded"/>
+</xs:sequence>
+<xs:attribute name="name" type="xs:token" />
+</xs:complexType>
+
+
+
+<xs:complexType name="model">
+<xs:sequence>
+	 <xs:element name="project" type="project" minOccurs="1" maxOccurs="unbounded"/>
+</xs:sequence>
+<xs:attribute name="description" type="xs:normalizedString" default="No description available"/>
+<xs:attribute name="name" type="xs:token" />
+<xs:attribute name="directory" type="xs:token" />
+</xs:complexType>
+
+<xs:element name="model" type="model"/>
+
+</xs:schema>

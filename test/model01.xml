@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<model
+   xmlns:xi="http://www.w3.org/2001/XInclude"
+   name="myProject"
+   description="my project"
+   directory="OUT"
+   >
+<project name="Proj1">
+	<sample name="Sample1">
+		<fastq>
+			<for>sample_1_01_R1.fastq.gz</for>
+			<rev>sample_1_01_R2.fastq.gz</rev>
+		</fastq>
+		<fastq>
+			<for>sample_1_02_R1.fastq.gz</for>
+			<rev>sample_1_02_R2.fastq.gz</rev>
+		</fastq>
+	</sample>
+	<sample name="Sample2">
+		<fastq>
+			<for>sample_2_01_R1.fastq.gz</for>
+			<rev>sample_2_01_R2.fastq.gz</rev>
+		</fastq>
+	</sample>
+</project>
+    
+
+</model>
