@@ -1,10 +1,12 @@
 ## Motivation
 
-build Makefile-based workflows for Next Generation Sequencing with XML model and XSLT transformations
+build a simple Makefile-based workflow for Next Generation Sequencing with a **XML** model and a **XSLT** transformation.
+
+Generating the Makefile only requires standard tools like **xmllint** and **xsltproc**.
 
 
 ## Example
-model of data
+Here is an self-explanatory xample of model of data
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <model name="myProject" description="my project" directory="OUT">
@@ -29,21 +31,65 @@ model of data
 </model>
 ```
 
-process the model with the xslt-stylesheet and create a **Makefile**
+Process the XML-model with the xslt stylesheet and create a **Makefile**
 
 ```bash
 $ xsltproc --output makefile stylesheets/model2make.xsl test/model01.xml
 ```
+
+Here are the first lines of the new **makefile**:
+
+```make
+include config.mk
+OUTDIR=OUT
+
+.PHONY=all clean all_bams all_vcfs
+
+all: all_vcfs
+
+
+all_vcfs:  \
+	$(OUTDIR)/Projects/Proj1/VCF/Proj1.vcf.gz
+
+
+all_bams:  \
+	$(OUTDIR)/Projects/Proj1/Samples/Sample1/BAM/Proj1_Sample1.bam \
+	$(OUTDIR)/Projects/Proj1/Samples/Sample2/BAM/Proj1_Sample2.bam
+
+#
+# VCF for project 'Proj1'
+# 
+$(OUTDIR)/Projects/Proj1/VCF/Proj1.vcf.gz :  \
+	$(OUTDIR)/Projects/Proj1/Samples/Sample1/BAM/Proj1_Sample1.bam \
+	$(OUTDIR)/Projects/Proj1/Samples/Sample2/BAM/Proj1_Sample2.bam \
+	$(addsuffix .fai,${REFERENCE})
+	mkdir -p $(dir $@) && \
+(...)
+```
+
+This Makefile **includes** an external file 'config.mk' describing the reference, the path of the tools.
+```make
+REFERENCE=test/ref/ref.fa
+tmp.prefix=__DELETE__
+samtools.exe=samtools
+bcftools.exe=bcftools
+bgzip.exe=bgzip
+tabix.exe=tabix
+bwa.exe=bwa
+```
+
+Using the option `-I` of `make` allows to select an alternate path to  config.mk. 
+
 
 Here is the workflow visualized with https://github.com/lindenb/makefile2graph
 
 ![doc/test01.png](doc/test01.png)
 
 
-run the makefile:
+run the makefile, with 5 parallel jobs, set the path to config.mk with option `-I`
 
 ```bash
-$ make -f makefile -I test/config/01/
+$ make -j5 -f makefile -I test/config/01/
 
 
 mkdir -p OUT/Projects/Proj1/Samples/Sample1/BAM/ && \
