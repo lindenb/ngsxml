@@ -1,6 +1,11 @@
 *~
 jeter*
 test01.mk
-test/fastq
-test/ref
+test/fastq/*.gz
+*.amb
+*.ann
+*.bwt
+*.fai
+*.pac
+*.sa
 

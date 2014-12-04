@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <model
-   xmlns:xi="http://www.w3.org/2001/XInclude"
    name="myProject"
    description="my project"
    directory="OUT"
@@ -11,7 +10,7 @@
 			<for>test/fastq/sample_1_01_R1.fastq.gz</for>
 			<rev>test/fastq/sample_1_01_R2.fastq.gz</rev>
 		</fastq>
-		<fastq>
+		<fastq id="groupid2" lane="2" library="lib1" platform="ILMN" median-size="98">
 			<for>test/fastq/sample_1_02_R1.fastq.gz</for>
 			<rev>test/fastq/sample_1_02_R2.fastq.gz</rev>
 		</fastq>

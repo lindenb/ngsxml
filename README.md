@@ -4,9 +4,18 @@ build a simple Makefile-based workflow for Next Generation Sequencing with a **X
 
 Generating the Makefile only requires standard tools like **xmllint** and **xsltproc**.
 
+To test this worklow, just type
+
+```
+$ make
+```
+
+it will generate and run a new makefile for the model below. 
 
 ## Example
+
 Here is an self-explanatory example of model for the data
+
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <model name="myProject" description="my project" directory="OUT">
@@ -121,8 +130,22 @@ mkdir -p OUT/Projects/Proj1/VCF/ && \
 	tabix -f -p vcf OUT/Projects/Proj1/VCF/Proj1.vcf.gz
 ```
 
+A tabix-indexed VCF is produced at the end:
 
-
+```
+$ gunzip -c OUT/Projects/Proj1/VCF/Proj1.vcf.gz
+##fileformat=VCFv4.1
+##samtoolsVersion=0.1.19-44428cd
+##reference=file://test/ref/ref.fa
+(...)
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	Sample1	Sample2
+chr4_gl000194_random	1973	.	C	G	14.4	.	DP=3;VDB=2.063840e-02;AF1=1;AC1=4;DP4=0,0,3,0;MQ=60;FQ=-32.3	GT:PL:GQ	1/1:31,6,0:11	1/1:17,3,0:8
+chr4_gl000194_random	2462	.	A	T	14.4	.	DP=3;VDB=2.063840e-02;AF1=1;AC1=4;DP4=0,0,0,3;MQ=60;FQ=-32.3	GT:PL:GQ	1/1:31,6,0:11	1/1:17,3,0:8
+chr4_gl000194_random	2492	.	G	C	14.4	.	DP=3;VDB=2.063840e-02;AF1=1;AC1=4;DP4=0,0,0,3;MQ=60;FQ=-32.3	GT:PL:GQ	1/1:31,6,0:11	1/1:17,3,0:8
+chr4_gl000194_random	2504	.	A	T	14.4	.	DP=3;VDB=2.063840e-02;AF1=1;AC1=4;DP4=0,0,0,3;MQ=60;FQ=-32.3	GT:PL:GQ	1/1:31,6,0:11	1/1:17,3,0:8
+chr4_gl000194_random	6652	.	A	C	14.4	.	DP=3;VDB=2.063840e-02;AF1=1;AC1=4;DP4=0,0,3,0;MQ=60;FQ=-32.3	GT:PL:GQ	1/1:31,6,0:11	1/1:17,3,0:8
+(...)
+```
 
 ## Author
 Author: Pierre Lindenbaum

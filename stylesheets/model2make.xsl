@@ -19,6 +19,15 @@
 # 
 include config.mk
 OUTDIR=<xsl:value-of select="@directory"/>
+BINDIR=$(abspath ${OUTDIR})/bin
+
+
+# if tools are undefined
+bwa.exe ?=${BINDIR}/bwa-0.7.10/bwa
+samtools.exe ?=${BINDIR}/samtools-0.1.19/samtools
+bcftools.exe ?=${BINDIR}/samtools-0.1.19/bcftools/bcftools
+tabix.exe ?=${BINDIR}/tabix-0.2.6/tabix
+bgzip.exe ?=${BINDIR}/tabix-0.2.6/bgzip
 
 .PHONY=all clean all_bams all_vcfs
 
@@ -35,14 +44,45 @@ all_bams: <xsl:for-each select="project/sample"> \
 
 <xsl:apply-templates select="project"/>
 
-$(addsuffix .fai,${REFERENCE}): ${REFERENCE}
-	${samtools.exe} faidx $lt;
+$(addsuffix .fai,${REFERENCE}): ${REFERENCE} ${samtools.exe}
+	${samtools.exe} faidx $&lt;
 
-$(addsuffix .bwt,${REFERENCE}): ${REFERENCE}
+$(addsuffix .bwt,${REFERENCE}): ${REFERENCE} ${bwa.exe}
 	${bwa.exe} index $&lt;
-	
+
+
+${BINDIR}/bwa-0.7.10/bwa :
+	rm -rf $(BINDIR)/bwa-0.7.10/ &amp;&amp; \
+	mkdir -p $(BINDIR) &amp;&amp; \
+	curl -o $(BINDIR)/bwa-0.7.10.tar.bz2 -L "http://sourceforge.net/projects/bio-bwa/files/bwa-0.7.10.tar.bz2/download?use_mirror=freefr" &amp;&amp; \
+	tar xvfj $(BINDIR)/bwa-0.7.10.tar.bz2 -C $(OUTDIR)/bin  &amp;&amp; \
+	rm $(BINDIR)/bwa-0.7.10.tar.bz2 &amp;&amp; \
+	make -C $(dir $@)
+
+${BINDIR}/samtools-0.1.19/bcftools/bcftools: ${BINDIR}/samtools-0.1.19/samtools
+
+${BINDIR}/samtools-0.1.19/samtools  :	
+	rm -rf $(BINDIR)/samtools-0.1.19/ &amp;&amp; \
+	mkdir -p $(BINDIR) &amp;&amp; \
+	curl -o $(BINDIR)/samtools-0.1.19.tar.bz2 -L "http://sourceforge.net/projects/samtools/files/samtools-0.1.19.tar.bz2/download?use_mirror=freefr" &amp;&amp; \
+	tar xvfj $(BINDIR)/samtools-0.1.19.tar.bz2 -C $(OUTDIR)/bin  &amp;&amp; \
+	rm $(BINDIR)/samtools-0.1.19.tar.bz2 &amp;&amp; \
+	make -C $(dir $@)
+
+
+${BINDIR}/tabix-0.2.6/bgzip : ${BINDIR}/tabix-0.2.6/tabix
+
+
+${BINDIR}/tabix-0.2.6/tabix  :	
+	rm -rf $(BINDIR)/tabix-0.2.6/ &amp;&amp; \
+	mkdir -p $(BINDIR) &amp;&amp; \
+	curl -o $(BINDIR)/tabix-0.2.6.tar.bz2 -L "http://sourceforge.net/projects/samtools/files/tabix-0.2.6.tar.bz2/download?use_mirror=freefr" &amp;&amp; \
+	tar xvfj $(BINDIR)/tabix-0.2.6.tar.bz2 -C $(OUTDIR)/bin  &amp;&amp; \
+	rm $(BINDIR)/tabix-0.2.6.tar.bz2 &amp;&amp; \
+	make -C $(dir $@) tabix bgzip
 
 clean:
+	rm -rf ${BINDIR}
 
 </xsl:template>
 
@@ -53,7 +93,7 @@ clean:
 # VCF for project '<xsl:value-of select="@name"/>'
 # 
 <xsl:apply-templates select="." mode="vcf.final"/> : $(addsuffix .bai,<xsl:for-each select="sample"><xsl:text> </xsl:text><xsl:apply-templates select="." mode="bam.final"/> </xsl:for-each>) \
-	$(addsuffix .fai,${REFERENCE})
+	$(addsuffix .fai,${REFERENCE}) ${samtools.exe}  ${bgzip.exe} ${tabix.exe} ${bcftools.exe}
 	mkdir -p $(dir $@) &amp;&amp; \
 	${samtools.exe} mpileup -uf ${REFERENCE} $(basename $(filter %.bai,$^)) | \
 	${bcftools.exe} view -vcg - > $(basename $@)  &amp;&amp; \
@@ -72,7 +112,7 @@ clean:
 #
 # index final BAM for Sample '<xsl:value-of select="@name"/>'
 # 
-$(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:apply-templates select="." mode="bam.final"/>
+$(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:apply-templates select="." mode="bam.final"/> ${samtools.exe}
 	mkdir -p $(dir $@) &amp;&amp; \
 	${samtools.exe} index  $&lt;
 #
@@ -83,7 +123,7 @@ $(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:appl
 	cp  $&lt; $@
 
 
-<xsl:apply-templates select="." mode="bam.rmdup"/><xsl:text> : </xsl:text><xsl:apply-templates select="." mode="bam.merged"/>
+<xsl:apply-templates select="." mode="bam.rmdup"/><xsl:text> : </xsl:text><xsl:apply-templates select="." mode="bam.merged"/> ${samtools.exe}
 	mkdir -p $(dir $@) &amp;&amp; \
 	${samtools.exe} rmdup  $&lt;  $@
 
@@ -93,7 +133,7 @@ $(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:appl
 # merge BAMs 
 #
 <xsl:apply-templates select="." mode="bam.merged"/><xsl:text> : </xsl:text><xsl:for-each select="fastq"> \
- 	<xsl:apply-templates select="." mode="bam.sorted"/> </xsl:for-each>
+ 	<xsl:apply-templates select="." mode="bam.sorted"/> </xsl:for-each> ${samtools.exe}
 	mkdir -p $(dir $@) &amp;&amp; \
  	${samtools.exe} merge -f $@ $(filter %.bam,$^)
   
@@ -112,23 +152,47 @@ $(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:appl
 #
 # Index BAM <xsl:apply-templates select="." mode="bam.sorted"/>
 #
-<xsl:text>$(addsuffix .bai,</xsl:text><xsl:apply-templates select="." mode="bam.sorted"/><xsl:text> ): </xsl:text><xsl:apply-templates select="." mode="bam.sorted"/>
+<xsl:text>$(addsuffix .bai,</xsl:text><xsl:apply-templates select="." mode="bam.sorted"/><xsl:text> ): </xsl:text><xsl:apply-templates select="." mode="bam.sorted"/> ${samtools.exe}
 	${samtools} index $&lt;
 
 #
 # Align <xsl:value-of select="for"/> and <xsl:value-of select="rev"/>
 #
 <xsl:apply-templates select="." mode="bam.sorted"/> : \
-	<xsl:value-of select="for"/>  \
-	<xsl:value-of select="rev"/> \
-	$(addsuffix .bwt,${REFERENCE})
+	<xsl:apply-templates select="for"/>  \
+	<xsl:apply-templates select="rev"/> \
+	$(addsuffix .bwt,${REFERENCE}) \
+	${bwa.exe} ${samtools.exe}
 	mkdir -p $(dir $@) &amp;&amp; \
-	${bwa.exe} mem -R '@RG\tID:<xsl:value-of select="generate-id(.)"/>\tSM:<xsl:value-of select="../@name"/>' ${REFERENCE} <xsl:value-of select="for"/> <xsl:text> </xsl:text> <xsl:value-of select="rev"/>  |\
+	${bwa.exe} mem -R '@RG\tID:<xsl:apply-templates select="." mode="fastq.id"/>\tSM:<xsl:value-of select="../@name"/>\tLB:<xsl:choose>
+		<xsl:when test="@library"><xsl:value-of select="@library"/></xsl:when>
+		<xsl:otherwise><xsl:value-of select="../@name"/></xsl:otherwise>
+		</xsl:choose>\tPL:<xsl:choose>
+		<xsl:when test="@platform"><xsl:value-of select="@platform"/></xsl:when>
+		<xsl:otherwise><xsl:text>ILLUMINA</xsl:text></xsl:otherwise>
+		</xsl:choose>\tPU:<xsl:choose>
+		<xsl:when test="@lane"><xsl:value-of select="@lane"/></xsl:when>
+		<xsl:otherwise><xsl:text>1</xsl:text></xsl:otherwise>
+		</xsl:choose><xsl:choose>
+		<xsl:when test="@median-size">\tPI:<xsl:value-of select="@median-size"/></xsl:when>
+		</xsl:choose>' \
+		${REFERENCE} \
+		<xsl:apply-templates select="for"/> \
+		<xsl:apply-templates select="rev"/> |\
 	${samtools.exe} view -uS - |\
 	${samtools.exe} sort - $(basename $@) 
 
 
 </xsl:template>
+
+<!-- BAM mapped to reference and sorted -->
+<xsl:template match='for|rev'>
+
+<xsl:value-of select="normalize-space(./text())"/>
+
+</xsl:template>
+
+
 
 <!-- BAM mapped to reference and sorted -->
 <xsl:template match='fastq' mode="bam.sorted">
@@ -140,6 +204,15 @@ $(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:appl
 <xsl:template match='fastq' mode="bam.dir">
 <xsl:apply-templates select=".." mode="bam.dir"/>
 </xsl:template>
+
+<!-- fastq-id will be used for read-groups in BAM -->
+<xsl:template match='fastq' mode="fastq.id">
+<xsl:choose>
+<xsl:when test="@id"><xsl:value-of select="@id"/></xsl:when>
+<xsl:otherwise><xsl:value-of select="generate-id(.)"/></xsl:otherwise>
+</xsl:choose>
+</xsl:template>
+
 
 <!-- directory for the BAMs -->
 <xsl:template match='sample' mode="bam.dir">
