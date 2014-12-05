@@ -28,8 +28,11 @@ samtools.exe ?=${BINDIR}/samtools-0.1.19/samtools
 bcftools.exe ?=${BINDIR}/samtools-0.1.19/bcftools/bcftools
 tabix.exe ?=${BINDIR}/tabix-0.2.6/tabix
 bgzip.exe ?=${BINDIR}/tabix-0.2.6/bgzip
+java.exe ?= java
+picard.version?=1.119
+picard.dir=${BINDIR}/picard-tools-${picard.version}
 
-.PHONY=all clean all_bams all_vcfs
+.PHONY= all clean all_bams all_vcfs
 
 all: all_vcfs
 
@@ -65,7 +68,7 @@ ${BINDIR}/samtools-0.1.19/samtools  :
 	rm -rf $(BINDIR)/samtools-0.1.19/ &amp;&amp; \
 	mkdir -p $(BINDIR) &amp;&amp; \
 	curl -o $(BINDIR)/samtools-0.1.19.tar.bz2 -L "http://sourceforge.net/projects/samtools/files/samtools-0.1.19.tar.bz2/download?use_mirror=freefr" &amp;&amp; \
-	tar xvfj $(BINDIR)/samtools-0.1.19.tar.bz2 -C $(OUTDIR)/bin  &amp;&amp; \
+	tar xvfj $(BINDIR)/samtools-0.1.19.tar.bz2 -C $(BINDIR)  &amp;&amp; \
 	rm $(BINDIR)/samtools-0.1.19.tar.bz2 &amp;&amp; \
 	make -C $(dir $@)
 
@@ -77,9 +80,19 @@ ${BINDIR}/tabix-0.2.6/tabix  :
 	rm -rf $(BINDIR)/tabix-0.2.6/ &amp;&amp; \
 	mkdir -p $(BINDIR) &amp;&amp; \
 	curl -o $(BINDIR)/tabix-0.2.6.tar.bz2 -L "http://sourceforge.net/projects/samtools/files/tabix-0.2.6.tar.bz2/download?use_mirror=freefr" &amp;&amp; \
-	tar xvfj $(BINDIR)/tabix-0.2.6.tar.bz2 -C $(OUTDIR)/bin  &amp;&amp; \
+	tar xvfj $(BINDIR)/tabix-0.2.6.tar.bz2 -C $(BINDIR)  &amp;&amp; \
 	rm $(BINDIR)/tabix-0.2.6.tar.bz2 &amp;&amp; \
 	make -C $(dir $@) tabix bgzip
+
+${BINDIR}/picard-tools-1.119/MergeSamFiles.jar : ${BINDIR}/picard-tools-1.119/MarkDuplicates.jar
+${BINDIR}/picard-tools-1.119/MarkDuplicates.jar :
+	rm -rf $(dir $@) &amp;&amp; \
+	mkdir -p $(BINDIR) &amp;&amp; \
+	curl -L -k -o ${BINDIR}/picard-tools-1.119.zip -L "http://downloads.sourceforge.net/project/picard/picard-tools/1.119/picard-tools-1.119.zip?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fpicard%2Ffiles%2Fpicard-tools%2F1.119%2F&amp;ts=1417770270&amp;use_mirror=skylink" &amp;&amp; \
+	unzip ${BINDIR}/picard-tools-1.119.zip -d ${BINDIR} &amp;&amp; \
+	rm $(BINDIR)/picard-tools-1.119.zip
+
+
 
 clean:
 	rm -rf ${BINDIR}
@@ -98,7 +111,7 @@ clean:
 	${samtools.exe} mpileup -uf ${REFERENCE} $(basename $(filter %.bai,$^)) | \
 	${bcftools.exe} view -vcg - > $(basename $@)  &amp;&amp; \
 	${bgzip.exe} -f $(basename $@) &amp;&amp; \
-	${tabix.exe} -f -p vcf $@
+	${tabix.exe} -f -p vcf $@ 
 	
 	   
 
@@ -123,9 +136,9 @@ $(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:appl
 	cp  $&lt; $@
 
 
-<xsl:apply-templates select="." mode="bam.rmdup"/><xsl:text> : </xsl:text><xsl:apply-templates select="." mode="bam.merged"/> ${samtools.exe}
+<xsl:apply-templates select="." mode="bam.rmdup"/><xsl:text> : </xsl:text><xsl:apply-templates select="." mode="bam.merged"/> ${picard.dir}/MarkDuplicates.jar
 	mkdir -p $(dir $@) &amp;&amp; \
-	${samtools.exe} rmdup  $&lt;  $@
+	${java.exe} -jar $(filter %.jar,$^) I=$&lt; O=$@ M=$(addsuffix .metrics,$@) AS=true VALIDATION_STRINGENCY=SILENT
 
 
 <xsl:if test="count(fastq) &gt; 1">
@@ -133,9 +146,9 @@ $(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:appl
 # merge BAMs 
 #
 <xsl:apply-templates select="." mode="bam.merged"/><xsl:text> : </xsl:text><xsl:for-each select="fastq"> \
- 	<xsl:apply-templates select="." mode="bam.sorted"/> </xsl:for-each> ${samtools.exe}
+ 	<xsl:apply-templates select="." mode="bam.sorted"/> </xsl:for-each> ${picard.dir}/MergeSamFiles.jar
 	mkdir -p $(dir $@) &amp;&amp; \
- 	${samtools.exe} merge -f $@ $(filter %.bam,$^)
+ 	${java.exe} -jar $(filter %.jar,$^)  $(foreach B,$(filter %.bam,$^), I=${B} ) O=$@ AS=true VALIDATION_STRINGENCY=SILENT
   
 </xsl:if>
 
