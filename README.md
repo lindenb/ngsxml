@@ -148,6 +148,24 @@ chr4_gl000194_random	6652	.	A	C	14.4	.	DP=3;VDB=2.063840e-02;AF1=1;AC1=4;DP4=0,0
 ```
 
 ## Author
-Author: Pierre Lindenbaum
+
+Author: Pierre Lindenbaum PhD
+
+## Contribute
+
+- Issue Tracker: http://github.com/lindenb/ngsxml/issues`
+- Source Code: http://github.com/lindenb/ngsxml
+
+
+##History
+
+* 2015-02-19 : added compatibility with our cluster (no newlines), graph target
+* 2015 : Creation
+
+## License
+
+The project is licensed under the MIT license.
+
+
 
 twitter @yokofakun

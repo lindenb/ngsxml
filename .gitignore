@@ -8,4 +8,5 @@ test/fastq/*.gz
 *.fai
 *.pac
 *.sa
-
+OUT
+graph.png
