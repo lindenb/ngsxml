@@ -153,7 +153,7 @@ Author: Pierre Lindenbaum PhD
 
 ## Contribute
 
-- Issue Tracker: http://github.com/lindenb/ngsxml/issues`
+- Issue Tracker: http://github.com/lindenb/ngsxml/issues
 - Source Code: http://github.com/lindenb/ngsxml
 
 
