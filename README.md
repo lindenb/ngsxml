@@ -37,6 +37,11 @@ Here is an self-explanatory example of model for the data
       </fastq>
     </sample>
   </project>
+  <!-- split called regions by chromosomes -->
+  <segments>
+    <segment chrom="chr4_gl000194_random" start="0" end="191469"/>
+    <segment chrom="chr1_gl000192_random" start="0" end="547496"/>
+  </segments>
 </model>
 ```
 
@@ -159,6 +164,7 @@ Author: Pierre Lindenbaum PhD
 
 ##History
 
+* 2015-03-03 : added segments to split mpileup by regions, picard 1.129, bam-list and vcf-list
 * 2015-02-19 : added compatibility with our cluster (no newlines), graph target
 * 2015 : Creation
 

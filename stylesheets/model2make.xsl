@@ -29,8 +29,9 @@ bcftools.exe ?=${BINDIR}/samtools-0.1.19/bcftools/bcftools
 tabix.exe ?=${BINDIR}/tabix-0.2.6/tabix
 bgzip.exe ?=${BINDIR}/tabix-0.2.6/bgzip
 java.exe ?= java
-picard.version?=1.119
+picard.version?=1.129
 picard.dir=${BINDIR}/picard-tools-${picard.version}
+picard.jar=${picard.dir}/picard.jar
 
 .PHONY= all clean all_bams all_vcfs
 
@@ -84,13 +85,17 @@ ${BINDIR}/tabix-0.2.6/tabix  :
 	rm $(BINDIR)/tabix-0.2.6.tar.bz2 &amp;&amp; \
 	make -C $(dir $@) tabix bgzip
 
-${BINDIR}/picard-tools-1.119/MergeSamFiles.jar : ${BINDIR}/picard-tools-1.119/MarkDuplicates.jar
-${BINDIR}/picard-tools-1.119/MarkDuplicates.jar :
+
+#
+# Download picard
+#
+${picard.jar} :
+	echo "DOWNLOADING PICARD version : ${picard.version}"
 	rm -rf $(dir $@) &amp;&amp; \
 	mkdir -p $(BINDIR) &amp;&amp; \
-	curl -L -k -o ${BINDIR}/picard-tools-1.119.zip -L "http://downloads.sourceforge.net/project/picard/picard-tools/1.119/picard-tools-1.119.zip?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fpicard%2Ffiles%2Fpicard-tools%2F1.119%2F&amp;ts=1417770270&amp;use_mirror=skylink" &amp;&amp; \
-	unzip ${BINDIR}/picard-tools-1.119.zip -d ${BINDIR} &amp;&amp; \
-	rm $(BINDIR)/picard-tools-1.119.zip
+	curl -L -k -o ${BINDIR}/picard-tools-${picard.version}.zip -kL "https://github.com/broadinstitute/picard/releases/download/${picard.version}/picard-tools-${picard.version}.zip" &amp;&amp; \
+	unzip ${BINDIR}/picard-tools-${picard.version}.zip -d ${BINDIR} &amp;&amp; \
+	rm $(BINDIR)/picard-tools-${picard.version}.zip
 
 
 
@@ -101,18 +106,58 @@ clean:
 
 
 <xsl:template match='project'>
-
+<xsl:variable name="proj" select="."/>
 #
 # VCF for project '<xsl:value-of select="@name"/>'
 # 
-<xsl:apply-templates select="." mode="vcf.final"/> : $(addsuffix .bai,<xsl:for-each select="sample"><xsl:text> </xsl:text><xsl:apply-templates select="." mode="bam.final"/> </xsl:for-each>) \
+<xsl:apply-templates select="." mode="vcf.final"/> : <xsl:apply-templates select="." mode="vcf.list"/> ${picard.jar}
+	mkdir -p $(dir $@) &amp;&amp; \
+	${java.exe} -jar $(filter %.jar,$^) GatherVcfs I=$&lt; O=$(addsuffix .tmp.vcf,$@) &amp;&amp; \
+	${bgzip.exe} -f $(addsuffix .tmp.vcf,$@) &amp;&amp; \
+	${tabix.exe} -f -p vcf $(addsuffix .tmp.vcf.gz,$@) &amp;&amp; \
+	mv $(addsuffix .tmp.vcf.gz,$@) $@ &amp;&amp; \
+	mv $(addsuffix .tmp.vcf.gz.tbi,$@) $(addsuffix .tbi,$@)
+
+#
+# Create a list of VCF files for project '<xsl:value-of select="@name"/>'
+#
+<xsl:apply-templates select="." mode="vcf.list"/> : <xsl:for-each select="/model/segments/segment"> \
+	<xsl:call-template name="proj.segment.vcf">
+		<xsl:with-param name="proj"    select="$proj"/>
+		<xsl:with-param name="segment" select="."/>
+	</xsl:call-template> </xsl:for-each>
+	mkdir -p $(dir $@)
+	rm -f $(addsuffix .tmp,$@) <xsl:for-each select="/model/segments/segment">
+	echo "<xsl:call-template name="proj.segment.vcf">
+		<xsl:with-param name="proj"    select="$proj"/>
+		<xsl:with-param name="segment" select="."/>
+	</xsl:call-template>" &gt;&gt; $(addsuffix .tmp,$@) </xsl:for-each>
+	mv $(addsuffix .tmp,$@) $@
+	
+
+<xsl:for-each select="/model/segments/segment">
+
+#
+# Create a VCF  for project '<xsl:value-of select="@name"/>' and segment <xsl:apply-templates select="." mode="id"/>
+#
+<xsl:call-template name="proj.segment.vcf">
+		<xsl:with-param name="proj"    select="$proj"/>
+		<xsl:with-param name="segment" select="."/>
+	</xsl:call-template> : <xsl:apply-templates select="$proj" mode="bam.list"/> \
 	$(addsuffix .fai,${REFERENCE}) ${samtools.exe}  ${bgzip.exe} ${tabix.exe} ${bcftools.exe}
 	mkdir -p $(dir $@) &amp;&amp; \
-	${samtools.exe} mpileup -uf ${REFERENCE} $(basename $(filter %.bai,$^)) | \
+	${samtools.exe} mpileup -uf ${REFERENCE} -b $&lt; -r <xsl:value-of select="concat(@chrom,':',@start,'-',@end)"/> | \
 	${bcftools.exe} view -vcg - > $(basename $@)  &amp;&amp; \
-	${bgzip.exe} -f $(basename $@) &amp;&amp; \
-	${tabix.exe} -f -p vcf $@ 
-	
+	${bgzip.exe} -f $(basename $@)
+
+</xsl:for-each>	
+
+
+<xsl:apply-templates select="." mode="bam.list"/> :  $(addsuffix .bai,<xsl:for-each select="sample"><xsl:text> </xsl:text><xsl:apply-templates select="." mode="bam.final"/> </xsl:for-each>)
+	mkdir -p $(dir $@)
+	rm -f $(addsuffix .tmp,$@) <xsl:for-each select="sample">
+	echo "<xsl:apply-templates select="." mode="bam.final"/>" &gt;&gt; $(addsuffix .tmp,$@) </xsl:for-each>
+	mv $(addsuffix .tmp,$@) $@
 	   
 
 <xsl:apply-templates select="sample"/>
@@ -136,9 +181,9 @@ $(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:appl
 	cp  $&lt; $@
 
 
-<xsl:apply-templates select="." mode="bam.rmdup"/><xsl:text> : </xsl:text><xsl:apply-templates select="." mode="bam.merged"/> ${picard.dir}/MarkDuplicates.jar
+<xsl:apply-templates select="." mode="bam.rmdup"/><xsl:text> : </xsl:text><xsl:apply-templates select="." mode="bam.merged"/> ${picard.jar}
 	mkdir -p $(dir $@) &amp;&amp; \
-	${java.exe} -jar $(filter %.jar,$^) I=$&lt; O=$@ M=$(addsuffix .metrics,$@) AS=true VALIDATION_STRINGENCY=SILENT
+	${java.exe} -jar $(filter %.jar,$^) MarkDuplicates I=$&lt; O=$@ M=$(addsuffix .metrics,$@) AS=true VALIDATION_STRINGENCY=SILENT
 
 
 <xsl:if test="count(fastq) &gt; 1">
@@ -146,9 +191,9 @@ $(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:appl
 # merge BAMs 
 #
 <xsl:apply-templates select="." mode="bam.merged"/><xsl:text> : </xsl:text><xsl:for-each select="fastq"> \
- 	<xsl:apply-templates select="." mode="bam.sorted"/> </xsl:for-each> ${picard.dir}/MergeSamFiles.jar
+ 	<xsl:apply-templates select="." mode="bam.sorted"/> </xsl:for-each> ${picard.jar}
 	mkdir -p $(dir $@) &amp;&amp; \
- 	${java.exe} -jar $(filter %.jar,$^)  $(foreach B,$(filter %.bam,$^), I=${B} ) O=$@ AS=true VALIDATION_STRINGENCY=SILENT
+ 	${java.exe} -jar $(filter %.jar,$^) MergeSamFiles $(foreach B,$(filter %.bam,$^), I=${B} ) O=$@ AS=true VALIDATION_STRINGENCY=SILENT
   
 </xsl:if>
 
@@ -267,6 +312,8 @@ $(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:appl
   <xsl:value-of select="concat(../@name,'_',@name,'.bam')"/>
 </xsl:template>
 
+
+
 <!-- Print the name of the bgzipped VCF for a project. All samples merged -->
 <xsl:template match='project' mode="vcf.final">
   <xsl:apply-templates select="." mode="dir"/>
@@ -274,11 +321,40 @@ $(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:appl
   <xsl:value-of select="concat(@name,'.vcf.gz')"/>
 </xsl:template>
 
+<!-- list of BAM for this project-->
+<xsl:template match='project' mode="bam.list">
+  <xsl:apply-templates select="." mode="dir"/>
+  <xsl:text>/BAM/${tmp.prefix}</xsl:text>
+  <xsl:value-of select="concat(@name,'.bam.list')"/>
+</xsl:template>
+
+<!-- list of VCF for this project-->
+<xsl:template match='project' mode="vcf.list">
+  <xsl:apply-templates select="." mode="dir"/>
+  <xsl:text>/VCF/${tmp.prefix}</xsl:text>
+  <xsl:value-of select="concat(@name,'.vcf.list')"/>
+</xsl:template>
+
 <!-- Print the PROJECT directory -->
 <xsl:template match='project' mode="dir">
 <xsl:text>$(OUTDIR)/Projects/</xsl:text>
 <xsl:value-of select="@name"/>
 </xsl:template>
+
+<xsl:template name='proj.segment.vcf'>
+<xsl:param name="proj"/>
+<xsl:param name="segment"/>
+<xsl:apply-templates select="$proj" mode="dir"/>
+<xsl:text>/VCF/${tmp.prefix}</xsl:text>
+<xsl:apply-templates select="$segment" mode="id"/>
+<xsl:text>.vcf.gz</xsl:text>
+</xsl:template>
+
+<!-- Print segment id -->
+<xsl:template match='segment' mode="id">
+<xsl:value-of select="concat(@chrom,'_',@start,'_',@end)"/>
+</xsl:template>
+
 
 
 </xsl:stylesheet>
