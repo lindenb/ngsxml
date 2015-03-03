@@ -4,6 +4,10 @@
    elementFormDefault="unqualified"
    attributeFormDefault="unqualified"
    >
+
+<xs:import namespace="http://www.w3.org/XML/1998/namespace"
+           schemaLocation="http://www.w3.org/2001/03/xml.xsd" />
+           
 <xs:simpleType name="fastqfile">
    <xs:restriction base="xs:normalizedString">
    </xs:restriction>
@@ -38,11 +42,26 @@
 </xs:complexType>
 
 
+<xs:complexType name="segment">
+<xs:attribute name="chrom" type="xs:token" use="required"/>
+<xs:attribute name="start" type="xs:int"  use="required"/>
+<xs:attribute name="end" type="xs:int"  use="required"/>
+</xs:complexType>
+
+<xs:complexType name="segments">
+<xs:sequence>
+	 <xs:element name="segment" type="segment" minOccurs="1" maxOccurs="unbounded"/>
+</xs:sequence>
+<xs:attribute ref="xml:base"/> 
+</xs:complexType>
+
 
 <xs:complexType name="model">
 <xs:sequence>
 	 <xs:element name="project" type="project" minOccurs="1" maxOccurs="unbounded"/>
+	 <xs:element name="segments" type="segments" minOccurs="1" maxOccurs="1"/>
 </xs:sequence>
+<xs:attribute ref="xml:base"/> 
 <xs:attribute name="description" type="xs:normalizedString" default="No description available"/>
 <xs:attribute name="name" type="xs:token" use="required"/>
 <xs:attribute name="directory" type="xs:token" use="required"/>

@@ -3,6 +3,7 @@
    name="myProject"
    description="my project"
    directory="OUT"
+   xmlns:xi="http://www.w3.org/2001/XInclude"
    >
 <project name="Proj1">
 	<sample name="Sample1">
@@ -23,5 +24,6 @@
 	</sample>
 </project>
     
+<xi:include href="segments.xml"/>
 
 </model>
