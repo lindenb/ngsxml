@@ -32,6 +32,9 @@ java.exe ?= java
 picard.version?=1.129
 picard.dir=${BINDIR}/picard-tools-${picard.version}
 picard.jar=${picard.dir}/picard.jar
+gatk.version=3.3
+gatk.dir=${BINDIR}/gatk-${gatk.version}
+gatk.jar=${gatk.dir}/GenomeAnalysisTK.jar
 
 .PHONY= all clean all_bams all_vcfs
 
@@ -90,13 +93,25 @@ ${BINDIR}/tabix-0.2.6/tabix  :
 # Download picard
 #
 ${picard.jar} :
-	echo "DOWNLOADING PICARD version : ${picard.version}"
+	echo "DOWNLOADING PICARD version : ${picard.version}"  &amp;&amp; \
 	rm -rf $(dir $@) &amp;&amp; \
 	mkdir -p $(BINDIR) &amp;&amp; \
-	curl -L -k -o ${BINDIR}/picard-tools-${picard.version}.zip -kL "https://github.com/broadinstitute/picard/releases/download/${picard.version}/picard-tools-${picard.version}.zip" &amp;&amp; \
+	curl -L -k -o ${BINDIR}/picard-tools-${picard.version}.zip "https://github.com/broadinstitute/picard/releases/download/${picard.version}/picard-tools-${picard.version}.zip" &amp;&amp; \
 	unzip ${BINDIR}/picard-tools-${picard.version}.zip -d ${BINDIR} &amp;&amp; \
 	rm $(BINDIR)/picard-tools-${picard.version}.zip
 
+
+#
+# Download GATK
+#
+${gatk.jar}:
+	echo "Downloading GATK version: ${gatk.version}"  &amp;&amp; \
+	rm -rf $(dir $@) &amp;&amp; \
+	mkdir -p $(BINDIR) ${BINDIR}/m2 &amp;&amp; \
+	curl -L -k -o ${BINDIR}/gatk-${gatk.version}.zip  "https://github.com/broadgsa/gatk/archive/${gatk.version}.zip" &amp;&amp; \
+	unzip ${BINDIR}/gatk-${gatk.version}.zip  -d ${BINDIR} &amp;&amp; \
+	echo "Now compiling GATK. Requires apache maven"  &amp;&amp; \
+	(cd $(dir $@) &amp;&amp; mvn build -Dmaven.repo.local=../m2)
 
 
 clean:
