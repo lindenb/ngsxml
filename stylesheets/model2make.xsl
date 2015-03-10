@@ -23,15 +23,20 @@ BINDIR=$(abspath ${OUTDIR})/bin
 
 
 # if tools are undefined
-bwa.exe ?=${BINDIR}/bwa-0.7.10/bwa
-samtools.exe ?=${BINDIR}/samtools-0.1.19/samtools
-bcftools.exe ?=${BINDIR}/samtools-0.1.19/bcftools/bcftools
-tabix.exe ?=${BINDIR}/tabix-0.2.6/tabix
-bgzip.exe ?=${BINDIR}/tabix-0.2.6/bgzip
+bwa.version=0.7.12
+bwa.exe ?=${BINDIR}/bwa-${bwa.version}/bwa
+htslib.version=1.2.1
+samtools.version=1.2
+samtools.exe ?=${BINDIR}/samtools-${samtools.version}/samtools
+bcftools.version=1.2
+bcftools.exe ?=${BINDIR}/bcftools-${bcftools.version}/bcftools
+tabix.exe ?=$(BINDIR)/htslib-${htslib.version}/tabix
+bgzip.exe ?=$(BINDIR)/htslib-${htslib.version}/bgzip
 java.exe ?= java
 picard.version?=1.129
 picard.dir=${BINDIR}/picard-tools-${picard.version}
 picard.jar=${picard.dir}/picard.jar
+curl.options=-kL
 
 .PHONY= all clean all_bams all_vcfs
 
@@ -55,35 +60,54 @@ $(addsuffix .bwt,${REFERENCE}): ${REFERENCE} ${bwa.exe}
 	${bwa.exe} index $&lt;
 
 
-${BINDIR}/bwa-0.7.10/bwa :
-	rm -rf $(BINDIR)/bwa-0.7.10/ &amp;&amp; \
+${bwa.exe}   :	
+	rm -rf $(dir $@) &amp;&amp; \
 	mkdir -p $(BINDIR) &amp;&amp; \
-	curl -o $(BINDIR)/bwa-0.7.10.tar.bz2 -L "http://sourceforge.net/projects/bio-bwa/files/bwa-0.7.10.tar.bz2/download?use_mirror=freefr" &amp;&amp; \
-	tar xvfj $(BINDIR)/bwa-0.7.10.tar.bz2 -C $(OUTDIR)/bin  &amp;&amp; \
-	rm $(BINDIR)/bwa-0.7.10.tar.bz2 &amp;&amp; \
+	curl ${curl.options} -L -o $(BINDIR)/bwa-${bwa.version}.zip -L "https://github.com/lh3/bwa/archive/${bwa.version}.zip" &amp;&amp; \
+	unzip $(BINDIR)/bwa-${bwa.version}.zip -d $(BINDIR)  &amp;&amp; \
+	rm $(BINDIR)/bwa-${bwa.version}.zip &amp;&amp; \
 	make -C $(dir $@)
 
-${BINDIR}/samtools-0.1.19/bcftools/bcftools: ${BINDIR}/samtools-0.1.19/samtools
-
-${BINDIR}/samtools-0.1.19/samtools  :	
-	rm -rf $(BINDIR)/samtools-0.1.19/ &amp;&amp; \
+${bcftools.exe}   : ${BINDIR}/htslib/htslib.mk
+	rm -rf $(dir $@) &amp;&amp; \
 	mkdir -p $(BINDIR) &amp;&amp; \
-	curl -o $(BINDIR)/samtools-0.1.19.tar.bz2 -L "http://sourceforge.net/projects/samtools/files/samtools-0.1.19.tar.bz2/download?use_mirror=freefr" &amp;&amp; \
-	tar xvfj $(BINDIR)/samtools-0.1.19.tar.bz2 -C $(BINDIR)  &amp;&amp; \
-	rm $(BINDIR)/samtools-0.1.19.tar.bz2 &amp;&amp; \
+	curl ${curl.options} -L -o $(BINDIR)/bcftools-${bcftools.version}.zip -L "https://github.com/samtools/bcftools/archive/${bcftools.version}.zip" &amp;&amp; \
+	unzip $(BINDIR)/bcftools-${bcftools.version}.zip -d $(BINDIR)  &amp;&amp; \
+	rm $(BINDIR)/bcftools-${bcftools.version}.zip &amp;&amp; \
 	make -C $(dir $@)
 
 
-${BINDIR}/tabix-0.2.6/bgzip : ${BINDIR}/tabix-0.2.6/tabix
-
-
-${BINDIR}/tabix-0.2.6/tabix  :	
-	rm -rf $(BINDIR)/tabix-0.2.6/ &amp;&amp; \
+${samtools.exe}  :	${BINDIR}/htslib/htslib.mk
+	rm -rf $(dir $@) &amp;&amp; \
 	mkdir -p $(BINDIR) &amp;&amp; \
-	curl -o $(BINDIR)/tabix-0.2.6.tar.bz2 -L "http://sourceforge.net/projects/samtools/files/tabix-0.2.6.tar.bz2/download?use_mirror=freefr" &amp;&amp; \
-	tar xvfj $(BINDIR)/tabix-0.2.6.tar.bz2 -C $(BINDIR)  &amp;&amp; \
-	rm $(BINDIR)/tabix-0.2.6.tar.bz2 &amp;&amp; \
-	make -C $(dir $@) tabix bgzip
+	curl ${curl.options} -L -o $(BINDIR)/samtools-${samtools.version}.zip -L "https://github.com/samtools/samtools/archive/${samtools.version}.zip" &amp;&amp; \
+	unzip $(BINDIR)/samtools-${samtools.version}.zip -d $(BINDIR)  &amp;&amp; \
+	rm $(BINDIR)/samtools-${samtools.version}.zip &amp;&amp; \
+	make -C $(dir $@)
+
+#
+# Create symlink because samtools requires a folder named htslib
+#
+${BINDIR}/htslib/htslib.mk : ${BINDIR}/htslib-${htslib.version}/htslib.mk
+	ln -s $(dir $&lt;) ${BINDIR}/htslib
+
+#
+# Tabix and bgzip are compiled by htslib
+#
+${tabix.exe} ${bgzip.exe}: ${BINDIR}/htslib-${htslib.version}/htslib.mk 
+
+#
+# Download htslib ${htslib.version}
+#
+${BINDIR}/htslib-${htslib.version}/htslib.mk :
+	rm -rf $(dir $@) &amp;&amp; \
+	mkdir -p $(BINDIR) &amp;&amp; \
+	curl ${curl.options} -L -o $(BINDIR)/htslib-${htslib.version}.zip -L "https://github.com/samtools/htslib/archive/${htslib.version}.zip" &amp;&amp; \
+	unzip $(BINDIR)/htslib-${htslib.version}.zip -d $(BINDIR)  &amp;&amp; \
+	rm $(BINDIR)/htslib-${htslib.version}.zip &amp;&amp; \
+	make -C $(dir $@)
+	
+
 
 
 #
@@ -93,7 +117,7 @@ ${picard.jar} :
 	echo "DOWNLOADING PICARD version : ${picard.version}"
 	rm -rf $(dir $@) &amp;&amp; \
 	mkdir -p $(BINDIR) &amp;&amp; \
-	curl -L -k -o ${BINDIR}/picard-tools-${picard.version}.zip -kL "https://github.com/broadinstitute/picard/releases/download/${picard.version}/picard-tools-${picard.version}.zip" &amp;&amp; \
+	curl ${curl.options} -o ${BINDIR}/picard-tools-${picard.version}.zip -kL "https://github.com/broadinstitute/picard/releases/download/${picard.version}/picard-tools-${picard.version}.zip" &amp;&amp; \
 	unzip ${BINDIR}/picard-tools-${picard.version}.zip -d ${BINDIR} &amp;&amp; \
 	rm $(BINDIR)/picard-tools-${picard.version}.zip
 
@@ -147,8 +171,7 @@ clean:
 	$(addsuffix .fai,${REFERENCE}) ${samtools.exe}  ${bgzip.exe} ${tabix.exe} ${bcftools.exe}
 	mkdir -p $(dir $@) &amp;&amp; \
 	${samtools.exe} mpileup -uf ${REFERENCE} -b $&lt; -r <xsl:value-of select="concat(@chrom,':',@start,'-',@end)"/> | \
-	${bcftools.exe} view -vcg - > $(basename $@)  &amp;&amp; \
-	${bgzip.exe} -f $(basename $@)
+	${bcftools.exe} call  --variants-only --multiallelic-caller --output-type z --output $@
 
 </xsl:for-each>	
 

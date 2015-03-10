@@ -35,7 +35,7 @@ test01.mk:  test/model01.xml stylesheets/model2make.xsl xsd/schema01.xsd
 # generate graph with makefile2graph
 graph: graph.png 
 graph.png : test01.mk
-	$(MAKE) -Bdn -f $< -I test/config/01/ |\
+	$(MAKE) --no-builtin-rules -Bdn -f $< -I test/config/01/ |\
 		make2graph | dot -Tpng -o $@
 
 clean:
