@@ -34,6 +34,8 @@ tabix.exe ?=$(BINDIR)/htslib-${htslib.version}/tabix
 bgzip.exe ?=$(BINDIR)/htslib-${htslib.version}/bgzip
 freebayes.version=v0.9.18
 freebayes.exe ?=$(BINDIR)/freebayes-${freebayes.version}/freebayes
+varscan.version=v2.3.7
+varscan.jar=$(BINDIR)/varscan-${varscan.version}/VarScan.${varscan.version}.jar
 java.exe ?= java
 picard.version?=1.129
 picard.dir=${BINDIR}/picard-tools-${picard.version}
@@ -184,6 +186,13 @@ ${picard.jar} :
 	unzip ${BINDIR}/picard-tools-${picard.version}.zip -d ${BINDIR} &amp;&amp; \
 	rm $(BINDIR)/picard-tools-${picard.version}.zip
 
+${varscan.jar} :
+	echo "DOWNLOADING varscan version : ${varscan.version}"
+	rm -rf $(dir $@) &amp;&amp; \
+	mkdir -p $(dir $@) &amp;&amp; \
+	curl ${curl.options} -o $@ "http://heanet.dl.sourceforge.net/project/varscan/VarScan.${varscan.version}.jar"
+
+
 
 clean:
 	rm -rf ${BINDIR}
@@ -211,10 +220,16 @@ $(call  vcf_segment,<xsl:value-of select="$proj/@name"/>,samtools,<xsl:value-of 
 	${bcftools.exe} call  --variants-only --multiallelic-caller --output-type z --output $@
 
 
-$(call  vcf_segment,<xsl:value-of select="$proj/@name"/>,freebayes,<xsl:value-of select="@chrom"/>,<xsl:value-of select="@start"/>,<xsl:value-of select="@end"/>) : <xsl:apply-templates select="$proj" mode="bam.list"/> \
-	$(addsuffix .fai,${REFERENCE}) ${freebayes.exe}
+$(call  vcf_segment,<xsl:value-of select="$proj/@name"/>,varscan,<xsl:value-of select="@chrom"/>,<xsl:value-of select="@start"/>,<xsl:value-of select="@end"/>) : <xsl:apply-templates select="$proj" mode="bam.list"/> \
+	$(addsuffix .fai,${REFERENCE}) ${varscan.jar} ${samtools.exe}
 	mkdir -p $(dir $@) &amp;&amp; \
-	exit -1
+	${samtools.exe} mpileup -f ${REFERENCE} -b $&lt; -r <xsl:value-of select="concat(@chrom,':',@start,'-',@end)"/> &gt; $(addsuffix .tmp.mpileup,$@) &amp;&amp; \
+	${java.exe} -jar $(filter %.jar,$^) mpileup2snp   $(addsuffix .tmp.mpileup,$@) --output-vcf --variants  &gt; $(addsuffix .snp.vcf,$@)  &amp;&amp; \
+	${java.exe} -jar $(filter %.jar,$^) mpileup2indel $(addsuffix .tmp.mpileup,$@) --output-vcf --variants  &gt; $(addsuffix .indel.vcf,$@)  &amp;&amp; \
+	${java.exe} -jar ${picard.jar} UpdateVcfSequenceDictionary I=$(addsuffix .snp.vcf,$@) O=$(addsuffix .snp.vcf,$@)
+	rm  $(addsuffix .tmp.mpileup,$@) 
+	gzip -f $(addsuffix .snp.vcf,$@) &amp;&amp; mv $(addsuffix .snp.vcf.gz,$@) $@
+
 
 </xsl:for-each>	
 
