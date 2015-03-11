@@ -164,7 +164,7 @@ Author: Pierre Lindenbaum PhD
 
 ##History
 
-* 2015-03-11 : added support for freebayes and varscan
+* 2015-03-11 : added support for freebayes and varscan; added FASTQC and CollectInsertSizeMetrics
 * 2015-03-10 : using sources from htslib+github
 * 2015-03-03 : added segments to split mpileup by regions, picard 1.129, bam-list and vcf-list
 * 2015-02-19 : added compatibility with our cluster (no newlines), graph target

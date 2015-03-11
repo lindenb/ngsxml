@@ -35,6 +35,8 @@ freebayes.version=v0.9.18
 freebayes.exe ?=$(BINDIR)/freebayes-${freebayes.version}/bin/freebayes
 varscan.version=v2.3.7
 varscan.jar=$(BINDIR)/varscan-${varscan.version}/VarScan.${varscan.version}.jar
+fastqc.version=0.11.2
+fastqc.exe=${BINDIR}/fastqc-${fastqc.version}/fastqc
 java.exe ?= java
 picard.version?=1.129
 picard.dir=${BINDIR}/picard-tools-${picard.version}
@@ -109,12 +111,42 @@ $$(call vcf_list,$(1),$(2)) : <xsl:for-each select="/model/segments/segment"> \
 endef
 
 
-.PHONY= all clean all_bams all_vcfs
+# 1 target
+# 2 fastq files
+define run_fastqc
 
-all: all_vcfs
+$(1) : $(2) ${fastqc.exe}
+	mkdir -p $$(dir $$@) &amp;&amp; \
+	cat $(2) > $$(addsuffix .tmp.gz,$$@) &amp;&amp; \
+	${fastqc.exe}   \
+		-o $$(dir $$@) \
+		-j ${java.exe} \
+		 --format fastq  --noextract \
+		 $$(addsuffix .tmp.gz,$$@)  &amp;&amp; \
+	rm $$(addsuffix .tmp.gz,$$@) &amp;&amp; \
+	mv $$(addsuffix .tmp_fastqc.zip,$$@) $$@
+	
+endef
+
+
+.PHONY= all clean all_bams all_vcfs all_quality_controls all_fastqc all_qc_insert_size
+
+all: all_quality_controls all_vcfs 
 
 
 all_vcfs: <xsl:for-each select="project"> $(foreach method,${callers},$(call vcf_final,<xsl:value-of select="@name"/>,${method})) </xsl:for-each>
+
+
+all_quality_controls : all_fastqc all_qc_insert_size
+
+
+all_fastqc : <xsl:for-each select="project/sample"> \
+	<xsl:apply-templates select="." mode="fastqc.for"/> \
+	<xsl:apply-templates select="." mode="fastqc.rev"/></xsl:for-each>
+
+
+all_qc_insert_size : <xsl:for-each select="project/sample"> \
+	<xsl:apply-templates select="." mode="qc.insert.size"/></xsl:for-each>
 
 
 all_bams: <xsl:for-each select="project/sample"> \
@@ -179,7 +211,20 @@ ${BINDIR}/htslib-${htslib.version}/htslib.mk :
 	unzip $(BINDIR)/htslib-${htslib.version}.zip -d $(BINDIR)  &amp;&amp; \
 	rm $(BINDIR)/htslib-${htslib.version}.zip &amp;&amp; \
 	make -C $(dir $@)
-	
+
+#
+# Download Fastqc ${fastqc.version}
+#
+${fastqc.exe} :
+	echo "Downloading FASTQC v.${fastqc.version}"  &amp;&amp; \
+	rm -rf $(dir $@) &amp;&amp; \
+	mkdir -p $(BINDIR) &amp;&amp; \
+	curl ${curl.options} -L -o $(BINDIR)/fastqc-${fastqc.version}.zip -L "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v${fastqc.version}.zip" &amp;&amp; \
+	unzip $(BINDIR)/fastqc-${fastqc.version}.zip -d ${BINDIR}  &amp;&amp; \
+	mv ${BINDIR}/FastQC $(BINDIR)/fastqc-${fastqc.version} &amp;&amp; \
+	rm $(BINDIR)/fastqc-${fastqc.version}.zip &amp;&amp; \
+	chmod +x ${fastqc.exe}
+
 
 
 
@@ -271,13 +316,19 @@ $(call sample_list,<xsl:value-of select="@name"/>):
 	mv $(addsuffix .tmp,$@) $@
 
 
-
+#
+# create a list of BAMs
+#
 <xsl:apply-templates select="." mode="bam.list"/> :  $(addsuffix .bai,<xsl:for-each select="sample"><xsl:text> </xsl:text><xsl:apply-templates select="." mode="bam.final"/> </xsl:for-each>)
 	mkdir -p $(dir $@)
 	rm -f $(addsuffix .tmp,$@) <xsl:for-each select="sample">
 	echo "<xsl:apply-templates select="." mode="bam.final"/>" &gt;&gt; $(addsuffix .tmp,$@) </xsl:for-each>
 	mv $(addsuffix .tmp,$@) $@
-	   
+
+
+
+
+
 
 <xsl:apply-templates select="sample"/>
 
@@ -316,6 +367,18 @@ $(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:appl
   
 </xsl:if>
 
+#
+# FastQC
+#
+$(eval $(call run_fastqc,<xsl:apply-templates select="." mode="fastqc.for"/>,<xsl:for-each select="fastq/for"><xsl:text> </xsl:text><xsl:apply-templates select="."/></xsl:for-each>))
+$(eval $(call run_fastqc,<xsl:apply-templates select="." mode="fastqc.rev"/>,<xsl:for-each select="fastq/rev"><xsl:text> </xsl:text><xsl:apply-templates select="."/></xsl:for-each>))
+
+#
+# Sizes
+#
+<xsl:apply-templates select="." mode="qc.insert.size"/>   : <xsl:apply-templates select="." mode="bam.final"/> ${picard.jar}
+	mkdir -p $(dir $@) &amp;&amp; \
+ 	${java.exe} -jar ${picard.jar} CollectInsertSizeMetrics I=$&lt; O=$@  AS=true H=$(addsuffix .pdf,$@) $(foreach M,ALL_READS SAMPLE LIBRARY READ_GROUP, LEVEL=${M} )
 
 <xsl:apply-templates select="fastq"/>
 
@@ -405,6 +468,26 @@ $(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:appl
 </xsl:template>
 
 
+<!--Base directory for a sample /FASTQC-->
+<xsl:template match='sample' mode="fastqc.dir">
+<xsl:apply-templates select="." mode="dir"/>
+<xsl:text>/FASTQC/</xsl:text>
+</xsl:template>
+
+<!--Base directory for a sample /FASTQC-->
+<xsl:template match='sample' mode="fastqc.for">
+<xsl:apply-templates select="." mode="fastqc.dir"/>
+<xsl:value-of select="@name"/>
+<xsl:text>.for_fastq.zip</xsl:text>
+</xsl:template>
+
+<!--Base directory for a sample /FASTQC-->
+<xsl:template match='sample' mode="fastqc.rev">
+<xsl:apply-templates select="." mode="fastqc.dir"/>
+<xsl:value-of select="@name"/>
+<xsl:text>.rev_fastq.zip</xsl:text>
+</xsl:template>
+
 
 <!-- Print the name BAM with merged sorted BAM -->
 <xsl:template match='sample' mode="bam.merged">
@@ -430,6 +513,13 @@ $(addsuffix .bai, <xsl:apply-templates select="." mode="bam.final"/>): <xsl:appl
   <xsl:apply-templates select="." mode="bam.dir"/>
   <xsl:value-of select="concat(../@name,'_',@name,'.bam')"/>
 </xsl:template>
+
+
+<xsl:template match='sample' mode="qc.insert.size">
+  <xsl:apply-templates select="." mode="dir"/>
+  <xsl:value-of select="concat('/SIZE/',@name,'.insert_size')"/>
+</xsl:template>
+
 
 
 
