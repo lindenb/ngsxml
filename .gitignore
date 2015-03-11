@@ -2,6 +2,7 @@
 jeter*
 test01.mk
 test/fastq/*.gz
+*.dict
 *.amb
 *.ann
 *.bwt

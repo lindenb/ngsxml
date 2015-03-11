@@ -4,7 +4,6 @@
 	xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
 	>
 
-
 <xsl:output method='text' />
 
 <xsl:template match='/'>
@@ -33,7 +32,7 @@ bcftools.exe ?=${BINDIR}/bcftools-${bcftools.version}/bcftools
 tabix.exe ?=$(BINDIR)/htslib-${htslib.version}/tabix
 bgzip.exe ?=$(BINDIR)/htslib-${htslib.version}/bgzip
 freebayes.version=v0.9.18
-freebayes.exe ?=$(BINDIR)/freebayes-${freebayes.version}/freebayes
+freebayes.exe ?=$(BINDIR)/freebayes-${freebayes.version}/bin/freebayes
 varscan.version=v2.3.7
 varscan.jar=$(BINDIR)/varscan-${varscan.version}/VarScan.${varscan.version}.jar
 java.exe ?= java
@@ -41,11 +40,16 @@ picard.version?=1.129
 picard.dir=${BINDIR}/picard-tools-${picard.version}
 picard.jar=${picard.dir}/picard.jar
 curl.options=-kL
-callers= samtools 
+callers=varscan samtools $(sort $(if $(realpath ($(addsuffix /cmake,$(subst :, ,${PATH})))),freebayes,))
 
 define project_dir
 $(OUTDIR)/Projects/$(1)
 endef
+
+define sample_list
+$(call project_dir,$(1))/sample.list
+endef
+
 
 define project_vcf_dir
 $(call project_dir,$(1))/VCF
@@ -125,6 +129,10 @@ $(addsuffix .fai,${REFERENCE}): ${REFERENCE} ${samtools.exe}
 $(addsuffix .bwt,${REFERENCE}): ${REFERENCE} ${bwa.exe}
 	${bwa.exe} index $&lt;
 
+$(addsuffix .dict,$(basename ${REFERENCE})): ${REFERENCE} ${picard.jar}
+	${java.exe} -jar ${picard.jar} CreateSequenceDictionary R=$&lt; O=$@
+
+
 
 ${bwa.exe}   :	
 	rm -rf $(dir $@) &amp;&amp; \
@@ -192,7 +200,11 @@ ${varscan.jar} :
 	mkdir -p $(dir $@) &amp;&amp; \
 	curl ${curl.options} -o $@ "http://heanet.dl.sourceforge.net/project/varscan/VarScan.${varscan.version}.jar"
 
-
+${freebayes.exe} :
+	echo "DOWNLOADING Freebayes version : ${freebayes.version}"	
+	rm -rf $(BINDIR)/freebayes-${freebayes.version} &amp;&amp; \
+	git clone --recursive "https://github.com/ekg/freebayes.git" $(BINDIR)/freebayes-${freebayes.version}
+	(cd $(BINDIR)/freebayes-${freebayes.version} &amp;&amp; git checkout ${freebayes.version} &amp;&amp; git submodule update --recursive &amp;&amp; make )
 
 clean:
 	rm -rf ${BINDIR}
@@ -221,17 +233,43 @@ $(call  vcf_segment,<xsl:value-of select="$proj/@name"/>,samtools,<xsl:value-of 
 
 
 $(call  vcf_segment,<xsl:value-of select="$proj/@name"/>,varscan,<xsl:value-of select="@chrom"/>,<xsl:value-of select="@start"/>,<xsl:value-of select="@end"/>) : <xsl:apply-templates select="$proj" mode="bam.list"/> \
-	$(addsuffix .fai,${REFERENCE}) ${varscan.jar} ${samtools.exe}
+	$(addsuffix .fai,${REFERENCE}) ${varscan.jar} ${samtools.exe} $(addsuffix .dict,$(basename ${REFERENCE})) \
+	$(call sample_list,<xsl:value-of select="$proj/@name"/>)
 	mkdir -p $(dir $@) &amp;&amp; \
 	${samtools.exe} mpileup -f ${REFERENCE} -b $&lt; -r <xsl:value-of select="concat(@chrom,':',@start,'-',@end)"/> &gt; $(addsuffix .tmp.mpileup,$@) &amp;&amp; \
-	${java.exe} -jar $(filter %.jar,$^) mpileup2snp   $(addsuffix .tmp.mpileup,$@) --output-vcf --variants  &gt; $(addsuffix .snp.vcf,$@)  &amp;&amp; \
-	${java.exe} -jar $(filter %.jar,$^) mpileup2indel $(addsuffix .tmp.mpileup,$@) --output-vcf --variants  &gt; $(addsuffix .indel.vcf,$@)  &amp;&amp; \
-	${java.exe} -jar ${picard.jar} UpdateVcfSequenceDictionary I=$(addsuffix .snp.vcf,$@) O=$(addsuffix .snp.vcf,$@)
-	rm  $(addsuffix .tmp.mpileup,$@) 
-	gzip -f $(addsuffix .snp.vcf,$@) &amp;&amp; mv $(addsuffix .snp.vcf.gz,$@) $@
+	${java.exe} -jar $(filter %.jar,$^) mpileup2snp   $(addsuffix .tmp.mpileup,$@) \
+		 --p-value 1 --output-vcf --variants --vcf-sample-list $(call sample_list,<xsl:value-of select="$proj/@name"/>) &gt; $(addsuffix .snp.vcf,$@)  &amp;&amp; \
+	${java.exe} -jar $(filter %.jar,$^) mpileup2indel $(addsuffix .tmp.mpileup,$@) \
+		--p-value 1 --output-vcf --variants --vcf-sample-list $(call sample_list,<xsl:value-of select="$proj/@name"/>) &gt; $(addsuffix .indel.vcf,$@)  &amp;&amp; \
+	head -n 1 $(addsuffix .snp.vcf,$@) &gt; $(addsuffix .tmp.vcf,$@)
+	grep -hE '^#' $(addsuffix .snp.vcf,$@) $(addsuffix .indel.vcf,$@) | grep -v "^##fileformat=" | LC_ALL=C sort | uniq &gt;&gt; $(addsuffix .tmp.vcf,$@)
+	grep -vhE '^#' $(addsuffix .snp.vcf,$@) $(addsuffix .indel.vcf,$@) | LC_ALL=C sort | uniq &gt;&gt; $(addsuffix .tmp.vcf,$@)
+	${java.exe} -jar ${picard.jar} UpdateVcfSequenceDictionary SEQUENCE_DICTIONARY=$(addsuffix .dict,$(basename ${REFERENCE})) I=$(addsuffix .tmp.vcf,$@) O=$(addsuffix .tmp2.vcf,$@)
+	${java.exe} -jar ${picard.jar} SortVcf SD=$(addsuffix .dict,$(basename ${REFERENCE})) I=$(addsuffix .tmp2.vcf,$@) O=$(addsuffix .tmp.vcf,$@)
+	rm  $(addsuffix .tmp2.vcf,$@) $(addsuffix .snp.vcf,$@) $(addsuffix .indel.vcf,$@) $(addsuffix .tmp.mpileup,$@)
+	gzip -f $(addsuffix .tmp.vcf,$@) &amp;&amp; mv $(addsuffix .tmp.vcf.gz,$@) $@
 
+
+$(call  vcf_segment,<xsl:value-of select="$proj/@name"/>,freebayes,<xsl:value-of select="@chrom"/>,<xsl:value-of select="@start"/>,<xsl:value-of select="@end"/>) : <xsl:apply-templates select="$proj" mode="bam.list"/> \
+	$(addsuffix .fai,${REFERENCE}) ${freebayes.exe}  $(addsuffix .dict,$(basename ${REFERENCE}))
+	mkdir -p $(dir $@) &amp;&amp; \
+	${freebayes.exe} --bam-list $&lt; --vcf $(addsuffix .tmp.vcf,$@) --fasta-reference ${REFERENCE} -r <xsl:value-of select="concat(@chrom,':',@start,'-',@end)"/>
+	${java.exe} -jar ${picard.jar} UpdateVcfSequenceDictionary SEQUENCE_DICTIONARY=$(addsuffix .dict,$(basename ${REFERENCE})) I=$(addsuffix .tmp.vcf,$@) O=$(addsuffix .tmp2.vcf,$@)
+	rm  $(addsuffix .tmp.vcf,$@)
+	gzip -f $(addsuffix .tmp2.vcf,$@) &amp;&amp; mv $(addsuffix .tmp2.vcf.gz,$@) $@
+	
 
 </xsl:for-each>	
+
+#
+# list of samples, for varscan
+#
+$(call sample_list,<xsl:value-of select="@name"/>): 
+	mkdir -p $(dir $@)
+	rm -f $(addsuffix .tmp,$@) <xsl:for-each select="sample">
+	echo "<xsl:value-of select="@name"/>" &gt;&gt; $(addsuffix .tmp,$@)</xsl:for-each>
+	mv $(addsuffix .tmp,$@) $@
+
 
 
 <xsl:apply-templates select="." mode="bam.list"/> :  $(addsuffix .bai,<xsl:for-each select="sample"><xsl:text> </xsl:text><xsl:apply-templates select="." mode="bam.final"/> </xsl:for-each>)
