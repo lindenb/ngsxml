@@ -4,7 +4,7 @@
 #
 XSLTPROC=xsltproc
 XMLLINT=xmllint
-
+SHELL=/bin/bash
 
 .PHONY:all dryrun clean tests graph
 

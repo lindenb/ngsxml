@@ -21,6 +21,11 @@ OUTDIR=<xsl:value-of select="@directory"/>
 BINDIR=$(abspath ${OUTDIR})/bin
 
 
+ifeq ($(origin JAVA_HOME), undefined)
+JAVA_HOME=/usr
+endif
+export JAVA_HOME
+
 # if tools are undefined
 bwa.version=0.7.12
 bwa.exe ?=${BINDIR}/bwa-${bwa.version}/bwa
@@ -37,12 +42,20 @@ varscan.version=v2.3.7
 varscan.jar=$(BINDIR)/varscan-${varscan.version}/VarScan.${varscan.version}.jar
 fastqc.version=0.11.2
 fastqc.exe=${BINDIR}/fastqc-${fastqc.version}/fastqc
-java.exe ?= java
+ant.version=1.8.2
+ant.exe=${BINDIR}/apache-ant-${ant-version}/bin/ant
+mvn.version=3.2.2
+mvn.exe=$(BINDIR)/apache-maven-${mvn.version}/bin/mvn
+java.exe ?=$(if ${JAVA_HOME},${JAVA_HOME}/bin/java,java)
 picard.version?=1.129
 picard.dir=${BINDIR}/picard-tools-${picard.version}
 picard.jar=${picard.dir}/picard.jar
+gatk.version=3.3
+gatk.jar=$(BINDIR)/gatk-protected-${gatk.version}/target/GenomeAnalysisTK.jar
 curl.options=-kL
-callers=varscan samtools $(sort $(if $(realpath ($(addsuffix /cmake,$(subst :, ,${PATH})))),freebayes,))
+callers=unifiedgenotyper varscan samtools $(sort $(if $(realpath ($(addsuffix /cmake,$(subst :, ,${PATH})))),freebayes,))
+
+
 
 define project_dir
 $(OUTDIR)/Projects/$(1)
@@ -226,8 +239,6 @@ ${fastqc.exe} :
 	chmod +x ${fastqc.exe}
 
 
-
-
 #
 # Download picard
 #
@@ -239,17 +250,62 @@ ${picard.jar} :
 	unzip ${BINDIR}/picard-tools-${picard.version}.zip -d ${BINDIR} &amp;&amp; \
 	rm $(BINDIR)/picard-tools-${picard.version}.zip
 
+#
+# Varscan
+#
 ${varscan.jar} :
 	echo "DOWNLOADING varscan version : ${varscan.version}"
 	rm -rf $(dir $@) &amp;&amp; \
 	mkdir -p $(dir $@) &amp;&amp; \
 	curl ${curl.options} -o $@ "http://heanet.dl.sourceforge.net/project/varscan/VarScan.${varscan.version}.jar"
 
+#
+# Freebayes
+#
 ${freebayes.exe} :
 	echo "DOWNLOADING Freebayes version : ${freebayes.version}"	
 	rm -rf $(BINDIR)/freebayes-${freebayes.version} &amp;&amp; \
 	git clone --recursive "https://github.com/ekg/freebayes.git" $(BINDIR)/freebayes-${freebayes.version}
 	(cd $(BINDIR)/freebayes-${freebayes.version} &amp;&amp; git checkout ${freebayes.version} &amp;&amp; git submodule update --recursive &amp;&amp; make )
+
+#
+# Ant
+#
+${ant.exe}:
+	echo "DOWNLOADING Ant version : ${ant.version}"	&amp;&amp; \
+	mkdir -p ${BINDIR} &amp;&amp; \
+	rm -rf $(BINDIR)/apache-ant-${ant.version} &amp;&amp; \
+	curl ${curl.options} -o ant-${ant.version}.zip "http://archive.apache.org/dist/ant/binaries/apache-ant-${ant.version}-bin.zip" &amp;&amp; \
+	unzip ant-${ant.version}.zip -d ${BINDIR} &amp;&amp; \
+	rm  ant-${ant.version}.zip &amp;&amp; \
+	touch --no-create $@
+
+#
+# Maven
+#
+${mvn.exe}:
+	echo "DOWNLOADING Maven version : ${mvn.version}" &amp;&amp; \
+	mkdir -p ${BINDIR} &amp;&amp; \
+	rm -rf $(BINDIR)/apache-maven-${mvn.version} &amp;&amp; \
+	curl ${curl.options} -o maven-${mvn.version}.zip "http://archive.apache.org/dist/maven/binaries/apache-maven-${mvn.version}-bin.zip" &amp;&amp; \
+	unzip maven-${mvn.version}.zip -d ${BINDIR} &amp;&amp; \
+	rm  maven-${mvn.version}.zip &amp;&amp; \
+	touch --no-create $@
+
+#
+# GATK
+#
+${gatk.jar} : ${mvn.exe}
+	echo "DOWNLOADING GATK version : ${gatk.version}"
+	mkdir -p ${BINDIR}/m2 &amp;&amp; \
+	rm -rf $(BINDIR)/gatk-protected-${gatk.version} gatk-${gatk.version}.zip &amp;&amp; \
+	curl ${curl.options} -o gatk-${gatk.version}.zip \
+		"https://github.com/broadgsa/gatk-protected/archive/${gatk.version}.zip" &amp;&amp; \
+	unzip gatk-${gatk.version}.zip -d ${BINDIR} &amp;&amp; \
+	rm gatk-${gatk.version}.zip &amp;&amp; \
+	(cd $(BINDIR)/gatk-protected-${gatk.version} &amp;&amp; ${mvn.exe} verify  -Dmaven.repo.local=../m2)
+		
+	
 
 clean:
 	rm -rf ${BINDIR}
@@ -303,6 +359,14 @@ $(call  vcf_segment,<xsl:value-of select="$proj/@name"/>,freebayes,<xsl:value-of
 	rm  $(addsuffix .tmp.vcf,$@)
 	gzip -f $(addsuffix .tmp2.vcf,$@) &amp;&amp; mv $(addsuffix .tmp2.vcf.gz,$@) $@
 	
+$(call  vcf_segment,<xsl:value-of select="$proj/@name"/>,unifiedgenotyper,<xsl:value-of select="@chrom"/>,<xsl:value-of select="@start"/>,<xsl:value-of select="@end"/>) : <xsl:apply-templates select="$proj" mode="bam.list"/> \
+	$(addsuffix .fai,${REFERENCE}) ${gatk.jar}  $(addsuffix .dict,$(basename ${REFERENCE}))
+	mkdir -p $(dir $@) &amp;&amp; \
+	${java.exe} -jar ${gatk.jar} -T UnifiedGenotyper \
+	-I $&lt; -R ${REFERENCE}  -glm BOTH -l INFO \
+	-L <xsl:value-of select="concat(@chrom,':',@start+1,'-',@end)"/> \
+	-o $(addsuffix .tmp.vcf,$@)  &amp;&amp; \
+	gzip -f $(addsuffix .tmp.vcf,$@) &amp;&amp; mv $(addsuffix .tmp.vcf.gz,$@) $@
 
 </xsl:for-each>	
 
