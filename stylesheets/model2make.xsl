@@ -53,7 +53,7 @@ picard.jar=${picard.dir}/picard.jar
 gatk.version=3.3
 gatk.jar=$(BINDIR)/gatk-protected-${gatk.version}/target/GenomeAnalysisTK.jar
 curl.options=-kL
-callers=unifiedgenotyper varscan samtools $(sort $(if $(realpath ($(addsuffix /cmake,$(subst :, ,${PATH})))),freebayes,))
+callers= varscan samtools $(sort $(if $(realpath ($(addsuffix /cmake,$(subst :, ,${PATH})))),freebayes,))
 
 
 
@@ -175,6 +175,8 @@ $(addsuffix .bwt,${REFERENCE}): ${REFERENCE} ${bwa.exe}
 	${bwa.exe} index $&lt;
 
 $(addsuffix .dict,$(basename ${REFERENCE})): ${REFERENCE} ${picard.jar}
+	mkdir -p $(dir $@)  &amp;&amp; \
+	rm -f $@  &amp;&amp; \
 	${java.exe} -jar ${picard.jar} CreateSequenceDictionary R=$&lt; O=$@
 
 
@@ -294,7 +296,9 @@ ${mvn.exe}:
 
 #
 # GATK
-#
+# at home I need to run maven twice because sometimes I've got
+# a error "could not create JVM"
+# 
 ${gatk.jar} : ${mvn.exe}
 	echo "DOWNLOADING GATK version : ${gatk.version}"
 	mkdir -p ${BINDIR}/m2 &amp;&amp; \
@@ -339,9 +343,9 @@ $(call  vcf_segment,<xsl:value-of select="$proj/@name"/>,varscan,<xsl:value-of s
 	mkdir -p $(dir $@) &amp;&amp; \
 	${samtools.exe} mpileup -f ${REFERENCE} -b $&lt; -r <xsl:value-of select="concat(@chrom,':',@start,'-',@end)"/> &gt; $(addsuffix .tmp.mpileup,$@) &amp;&amp; \
 	${java.exe} -jar $(filter %.jar,$^) mpileup2snp   $(addsuffix .tmp.mpileup,$@) \
-		 --p-value 1 --output-vcf --variants --vcf-sample-list $(call sample_list,<xsl:value-of select="$proj/@name"/>) &gt; $(addsuffix .snp.vcf,$@)  &amp;&amp; \
+		-output-vcf --variants --vcf-sample-list $(call sample_list,<xsl:value-of select="$proj/@name"/>) &gt; $(addsuffix .snp.vcf,$@)  &amp;&amp; \
 	${java.exe} -jar $(filter %.jar,$^) mpileup2indel $(addsuffix .tmp.mpileup,$@) \
-		--p-value 1 --output-vcf --variants --vcf-sample-list $(call sample_list,<xsl:value-of select="$proj/@name"/>) &gt; $(addsuffix .indel.vcf,$@)  &amp;&amp; \
+		--output-vcf --variants --vcf-sample-list $(call sample_list,<xsl:value-of select="$proj/@name"/>) &gt; $(addsuffix .indel.vcf,$@)  &amp;&amp; \
 	head -n 1 $(addsuffix .snp.vcf,$@) &gt; $(addsuffix .tmp.vcf,$@)
 	grep -hE '^#' $(addsuffix .snp.vcf,$@) $(addsuffix .indel.vcf,$@) | grep -v "^##fileformat=" | LC_ALL=C sort | uniq &gt;&gt; $(addsuffix .tmp.vcf,$@)
 	grep -vhE '^#' $(addsuffix .snp.vcf,$@) $(addsuffix .indel.vcf,$@) | LC_ALL=C sort | uniq &gt;&gt; $(addsuffix .tmp.vcf,$@)

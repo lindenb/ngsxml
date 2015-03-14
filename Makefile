@@ -34,8 +34,14 @@ test01.mk:  test/model01.xml stylesheets/model2make.xsl xsd/schema01.xsd
 		--xinclude \
 		--path test/ref \
 		$(filter %.xsl,$^) $< |\
+	tee $(addsuffix .nofold.tmp,$(basename $@)) |\
 	awk '/\\$$/ { L=length($$0); printf("%s",substr($$0,1,L-1)); next;} { printf("%s\n",$$0);}' > $(addsuffix .tmp,$@)
 	mv $(addsuffix .tmp,$@) $@
+	echo 'Generated Makefile: ' > makefile.md 
+	echo '```make' >> makefile.md
+	cat  $(addsuffix .nofold.tmp,$(basename $@)) >> makefile.md
+	echo '```' >> makefile.md
+	rm $(addsuffix .nofold.tmp,$(basename $@))
 
 # generate graph with makefile2graph
 graph: graph.png 

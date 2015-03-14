@@ -6,20 +6,34 @@
    xmlns:xi="http://www.w3.org/2001/XInclude"
    >
 <project name="Proj1">
-	<sample name="Sample1">
+	<sample name="NA12878">
 		<fastq>
-			<for>test/fastq/sample_1_01_R1.fastq.gz</for>
-			<rev>test/fastq/sample_1_01_R2.fastq.gz</rev>
+			<for>test/fastq/NA12878_01_R1.fastq.gz</for>
+			<rev>test/fastq/NA12878_01_R2.fastq.gz</rev>
 		</fastq>
 		<fastq id="groupid2" lane="2" library="lib1" platform="ILMN" median-size="98">
-			<for>test/fastq/sample_1_02_R1.fastq.gz</for>
-			<rev>test/fastq/sample_1_02_R2.fastq.gz</rev>
+			<for>test/fastq/NA12878_02_R1.fastq.gz</for>
+			<rev>test/fastq/NA12878_02_R2.fastq.gz</rev>
 		</fastq>
 	</sample>
-	<sample name="Sample2">
+	<sample name="NA12891">
 		<fastq>
-			<for>test/fastq/sample_2_01_R1.fastq.gz</for>
-			<rev>test/fastq/sample_2_01_R2.fastq.gz</rev>
+			<for>test/fastq/NA12891_01_R1.fastq.gz</for>
+			<rev>test/fastq/NA12891_01_R2.fastq.gz</rev>
+		</fastq>
+		<fastq>
+			<for>test/fastq/NA12891_02_R1.fastq.gz</for>
+			<rev>test/fastq/NA12891_02_R2.fastq.gz</rev>
+		</fastq>
+	</sample>
+	<sample name="NA12892">
+		<fastq>
+			<for>test/fastq/NA12892_01_R1.fastq.gz</for>
+			<rev>test/fastq/NA12892_01_R2.fastq.gz</rev>
+		</fastq>
+		<fastq>
+			<for>test/fastq/NA12892_02_R1.fastq.gz</for>
+			<rev>test/fastq/NA12892_02_R2.fastq.gz</rev>
 		</fastq>
 	</sample>
 </project>

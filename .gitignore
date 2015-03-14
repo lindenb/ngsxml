@@ -11,3 +11,4 @@ test/fastq/*.gz
 *.sa
 OUT
 graph.png
+test01.nofold.tmp
