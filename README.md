@@ -18,7 +18,7 @@ Here is an self-explanatory example of model for the data
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<model xmlns:xi="http://www.w3.org/2001/XInclude" name="myProject" description="my project" directory="OUT">
+<model name="myProject" description="my project" directory="OUT">
   <project name="Proj1">
     <sample name="NA12878">
       <fastq>
