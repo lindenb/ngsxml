@@ -18,31 +18,47 @@ Here is an self-explanatory example of model for the data
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<model name="myProject" description="my project" directory="OUT">
+<model xmlns:xi="http://www.w3.org/2001/XInclude" name="myProject" description="my project" directory="OUT">
   <project name="Proj1">
-    <sample name="Sample1">
+    <sample name="NA12878">
       <fastq>
-        <for>test/fastq/sample_1_01_R1.fastq.gz</for>
-        <rev>test/fastq/sample_1_01_R2.fastq.gz</rev>
+        <for>test/fastq/NA12878_01_R1.fastq.gz</for>
+        <rev>test/fastq/NA12878_01_R2.fastq.gz</rev>
       </fastq>
-      <fastq>
-        <for>test/fastq/sample_1_02_R1.fastq.gz</for>
-        <rev>test/fastq/sample_1_02_R2.fastq.gz</rev>
+      <fastq id="groupid2" lane="2" library="lib1" platform="ILMN" median-size="98">
+        <for>test/fastq/NA12878_02_R1.fastq.gz</for>
+        <rev>test/fastq/NA12878_02_R2.fastq.gz</rev>
       </fastq>
     </sample>
-    <sample name="Sample2">
+    <sample name="NA12891">
       <fastq>
-        <for>test/fastq/sample_2_01_R1.fastq.gz</for>
-        <rev>test/fastq/sample_2_01_R2.fastq.gz</rev>
+        <for>test/fastq/NA12891_01_R1.fastq.gz</for>
+        <rev>test/fastq/NA12891_01_R2.fastq.gz</rev>
+      </fastq>
+      <fastq>
+        <for>test/fastq/NA12891_02_R1.fastq.gz</for>
+        <rev>test/fastq/NA12891_02_R2.fastq.gz</rev>
+      </fastq>
+    </sample>
+    <sample name="NA12892">
+      <fastq>
+        <for>test/fastq/NA12892_01_R1.fastq.gz</for>
+        <rev>test/fastq/NA12892_01_R2.fastq.gz</rev>
+      </fastq>
+      <fastq>
+        <for>test/fastq/NA12892_02_R1.fastq.gz</for>
+        <rev>test/fastq/NA12892_02_R2.fastq.gz</rev>
       </fastq>
     </sample>
   </project>
-  <!-- split called regions by chromosomes -->
-  <segments>
-    <segment chrom="chr4_gl000194_random" start="0" end="191469"/>
-    <segment chrom="chr1_gl000192_random" start="0" end="547496"/>
+
+  <segments xml:base="ref/segments.xml">
+    <segment chrom="seg1" start="0" end="5101"/>
+    <segment chrom="seg2" start="0" end="4000"/>
   </segments>
+
 </model>
+
 ```
 
 Process the XML-model with the xslt stylesheet and create a **Makefile**
@@ -51,33 +67,42 @@ Process the XML-model with the xslt stylesheet and create a **Makefile**
 $ xsltproc --output makefile stylesheets/model2make.xsl test/model01.xml
 ```
 
-Here are the first lines of the new **makefile**:
+Here is the generated **makefile**: [makefile.md](https://github.com/lindenb/ngsxml/blob/master/makefile.md)
 
 ```make
 include config.mk
 OUTDIR=OUT
+(...)
 
 .PHONY=all clean all_bams all_vcfs
-
-all: all_vcfs
-
-
-all_vcfs:  \
-	$(OUTDIR)/Projects/Proj1/VCF/Proj1.vcf.gz
+all_qc_insert_size :  \
+	$(call project_dir,Proj1)/Samples/NA12878/SIZE/NA12878.insert_size \
+	$(call project_dir,Proj1)/Samples/NA12891/SIZE/NA12891.insert_size \
+	$(call project_dir,Proj1)/Samples/NA12892/SIZE/NA12892.insert_size
 
 
 all_bams:  \
-	$(OUTDIR)/Projects/Proj1/Samples/Sample1/BAM/Proj1_Sample1.bam \
-	$(OUTDIR)/Projects/Proj1/Samples/Sample2/BAM/Proj1_Sample2.bam
+	$(call project_dir,Proj1)/Samples/NA12878/BAM/Proj1_NA12878.bam \
+	$(call project_dir,Proj1)/Samples/NA12891/BAM/Proj1_NA12891.bam \
+	$(call project_dir,Proj1)/Samples/NA12892/BAM/Proj1_NA12892.bam
+
+$(eval $(foreach C,${callers},$(call gather_vcf,Proj1,$C)))
+$(eval $(foreach C,${callers},$(call create_vcf_list,Proj1,$C)))
+
+
+
 
 #
-# VCF for project 'Proj1'
-# 
-$(OUTDIR)/Projects/Proj1/VCF/Proj1.vcf.gz :  \
-	$(OUTDIR)/Projects/Proj1/Samples/Sample1/BAM/Proj1_Sample1.bam \
-	$(OUTDIR)/Projects/Proj1/Samples/Sample2/BAM/Proj1_Sample2.bam \
-	$(addsuffix .fai,${REFERENCE})
+# Create a VCF  for project '' and segment 
+#
+
+$(call  vcf_segment,Proj1,samtools,seg1,0,5101) : $(call project_dir,Proj1)/BAM/${tmp.prefix}Proj1.bam.list \
+	$(addsuffix .fai,${REFERENCE}) ${samtools.exe}  ${bcftools.exe}
 	mkdir -p $(dir $@) && \
+	${samtools.exe} mpileup -uf ${REFERENCE} -b $< -r seg1:0-5101 | \
+	${bcftools.exe} call  --variants-only --multiallelic-caller --output-type z --output $@
+
+
 (...)
 ```
 
